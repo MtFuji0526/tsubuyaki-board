@@ -2,6 +2,7 @@ package com.example.tsubuyaki.repository;
 
 import com.example.tsubuyaki.domain.Post;
 import com.example.tsubuyaki.domain.PostLike;
+import com.example.tsubuyaki.domain.Tag;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,16 +26,19 @@ class PostRepositoryTest {
     @Autowired
     private PostLikeRepository postLikeRepository;
 
+    @Autowired
+    private TagRepository tagRepository;
+
     @Test
     @DisplayName("投稿一覧_投稿が51件あるとき_最新50件を新着順で返す")
-    void findTop50ByOrderByCreatedAtDesc_with51Posts_returnsLatest50InDescendingOrder() {
+    void findTop50ByDeletedAtIsNullOrderByCreatedAtDesc_with51Posts_returnsLatest50InDescendingOrder() {
         LocalDateTime base = LocalDateTime.of(2026, 5, 23, 0, 0);
         var posts = IntStream.rangeClosed(1, 51)
                 .mapToObj(index -> new Post("user", "post-%02d".formatted(index), base.plusSeconds(index)))
                 .toList();
         postRepository.saveAll(posts);
 
-        var latestPosts = postRepository.findTop50ByOrderByCreatedAtDesc();
+        var latestPosts = postRepository.findTop50ByDeletedAtIsNullOrderByCreatedAtDesc();
 
         assertThat(latestPosts).hasSize(50);
         assertThat(latestPosts)
@@ -42,6 +46,27 @@ class PostRepositoryTest {
                 .startsWith("post-51")
                 .endsWith("post-02")
                 .doesNotContain("post-01");
+    }
+
+    @Test
+    @DisplayName("投稿一覧_論理削除済み投稿があるとき_削除されていない投稿のみ返す")
+    void findTop50ByDeletedAtIsNullOrderByCreatedAtDesc_withDeletedPost_excludesDeletedPost() {
+        Post visible = postRepository.save(new Post(
+                "alice",
+                "visible post",
+                LocalDateTime.of(2026, 5, 23, 10, 0)));
+        Post deleted = new Post(
+                "bob",
+                "deleted post",
+                LocalDateTime.of(2026, 5, 23, 11, 0));
+        deleted.delete(LocalDateTime.of(2026, 5, 23, 12, 0));
+        postRepository.save(deleted);
+
+        var posts = postRepository.findTop50ByDeletedAtIsNullOrderByCreatedAtDesc();
+
+        assertThat(posts)
+                .extracting(Post::getBody)
+                .containsExactly(visible.getBody());
     }
 
     @Test
@@ -64,16 +89,38 @@ class PostRepositoryTest {
 
     @Test
     @DisplayName("投稿検索_本文にキーワードを含むとき_該当投稿を新着順で返す")
-    void findTop50ByBodyContainingOrderByCreatedAtDesc_withKeyword_returnsMatchesInDescendingOrder() {
+    void findTop50ByDeletedAtIsNullAndBodyContainingOrderByCreatedAtDesc_withKeyword_returnsMatchesInDescendingOrder() {
         postRepository.save(new Post("alice", "hello spring", LocalDateTime.of(2026, 5, 23, 9, 0)));
         postRepository.save(new Post("bob", "unmatched body", LocalDateTime.of(2026, 5, 23, 10, 0)));
         postRepository.save(new Post("carol", "hello thymeleaf", LocalDateTime.of(2026, 5, 23, 11, 0)));
 
-        var posts = postRepository.findTop50ByBodyContainingOrderByCreatedAtDesc("hello");
+        var posts = postRepository.findTop50ByDeletedAtIsNullAndBodyContainingOrderByCreatedAtDesc("hello");
 
         assertThat(posts)
                 .extracting(Post::getBody)
                 .containsExactly("hello thymeleaf", "hello spring");
+    }
+
+    @Test
+    @DisplayName("タグ別投稿一覧_タグに紐づく投稿があるとき_対象投稿だけ新着順で返す")
+    void findDistinctTop50ByTagsNameAndDeletedAtIsNullOrderByCreatedAtDesc_withTag_returnsTaggedPosts() {
+        Tag java = tagRepository.save(new Tag("Java"));
+        Tag spring = tagRepository.save(new Tag("Spring"));
+        Post olderJava = new Post("alice", "#Java older", LocalDateTime.of(2026, 5, 23, 9, 0));
+        olderJava.addTag(java);
+        Post newerJava = new Post("bob", "#Java newer", LocalDateTime.of(2026, 5, 23, 11, 0));
+        newerJava.addTag(java);
+        Post springPost = new Post("carol", "#Spring only", LocalDateTime.of(2026, 5, 23, 12, 0));
+        springPost.addTag(spring);
+        postRepository.save(olderJava);
+        postRepository.save(newerJava);
+        postRepository.save(springPost);
+
+        var posts = postRepository.findDistinctTop50ByTagsNameAndDeletedAtIsNullOrderByCreatedAtDesc("Java");
+
+        assertThat(posts)
+                .extracting(Post::getBody)
+                .containsExactly("#Java newer", "#Java older");
     }
 
     @Test

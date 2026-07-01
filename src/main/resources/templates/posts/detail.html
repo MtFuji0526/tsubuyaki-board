@@ -24,13 +24,24 @@
             <span class="post__created-at"
                   th:text="${#temporals.format(post.createdAt, 'yyyy-MM-dd HH:mm')}">2026-05-23 09:00</span>
         </header>
-        <p class="post__body" th:text="${post.body}">本文</p>
+        <p class="post__body">
+            <span th:each="part : ${bodyParts}">
+                <a th:if="${part.tag}"
+                   th:href="@{/tags/{name}(name=${part.tagName})}"
+                   th:text="${part.text}">#タグ</a><span th:unless="${part.tag}" th:text="${part.text}">本文</span>
+            </span>
+        </p>
         <footer class="post__actions">
             <span class="post__like-count" th:text="${likeCount + ' 件'}">0 件</span>
             <form class="post__like-form" th:action="@{/posts/{id}/likes(id=${post.id})}" method="post">
                 <input type="hidden" th:if="${_csrf != null}"
                        th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <button type="submit">Like</button>
+            </form>
+            <form class="post__delete-form" th:action="@{/posts/{id}/delete(id=${post.id})}" method="post">
+                <input type="hidden" th:if="${_csrf != null}"
+                       th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <button type="submit">削除</button>
             </form>
         </footer>
     </article>

@@ -1,6 +1,7 @@
 package com.example.tsubuyaki.controller;
 
 import com.example.tsubuyaki.service.PostService;
+import com.example.tsubuyaki.web.HashtagParser;
 import com.example.tsubuyaki.web.dto.PostForm;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -46,8 +47,17 @@ public class PostController {
         var post = postService.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         model.addAttribute("post", post);
+        model.addAttribute("bodyParts", HashtagParser.parseBodyParts(post.getBody()));
         model.addAttribute("likeCount", postService.countLikes(id));
         return "posts/detail";
+    }
+
+    @GetMapping("/tags/{name}")
+    public String listByTag(@PathVariable String name, Model model) {
+        model.addAttribute("posts", postService.findByTagName(name));
+        model.addAttribute("q", "");
+        model.addAttribute("tagName", name);
+        return "posts/list";
     }
 
     @GetMapping("/posts/new")
@@ -65,6 +75,12 @@ public class PostController {
         }
 
         postService.create(postForm.getAuthor(), postForm.getBody(), postForm.getAvatarColor());
+        return "redirect:/posts";
+    }
+
+    @PostMapping("/posts/{id}/delete")
+    public String delete(@PathVariable Long id) {
+        postService.delete(id);
         return "redirect:/posts";
     }
 

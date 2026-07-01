@@ -111,6 +111,28 @@ class PostControllerTest {
     }
 
     @Test
+    @DisplayName("タグ別投稿一覧_タグ名を指定したとき_該当投稿だけをビューに渡す")
+    void getPostsByTag_withTagName_addsTaggedPostsToModel() throws Exception {
+        Post matched = new Post("alice", "#Java spring", LocalDateTime.of(2026, 5, 23, 10, 0));
+        ReflectionTestUtils.setField(matched, "id", 1L);
+        given(postService.findByTagName("Java")).willReturn(List.of(matched));
+
+        var result = mockMvc.perform(get("/tags/Java"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("posts/list"))
+                .andExpect(model().attribute("tagName", "Java"))
+                .andExpect(content().string(containsString("#Java spring")))
+                .andReturn();
+
+        @SuppressWarnings("unchecked")
+        List<Post> posts = (List<Post>) result.getModelAndView().getModel().get("posts");
+        assertThat(posts)
+                .extracting(Post::getBody)
+                .containsExactly("#Java spring");
+        then(postService).should().findByTagName("Java");
+    }
+
+    @Test
     @DisplayName("投稿詳細_存在するIDのとき_対象投稿を表示する")
     void getPostDetail_withExistingId_showsPostDetail() throws Exception {
         Post post = new Post("alice", "detail body", "#ff0000", LocalDateTime.of(2026, 5, 23, 10, 0));
@@ -126,7 +148,27 @@ class PostControllerTest {
                 .andExpect(content().string(containsString("alice")))
                 .andExpect(content().string(containsString("detail body")))
                 .andExpect(content().string(containsString("background-color: #ff0000")))
-                .andExpect(content().string(containsString("3 件")));
+                .andExpect(content().string(containsString("3 件")))
+                .andExpect(content().string(containsString("action=\"/posts/1/delete\"")));
+
+        then(postService).should().findById(1L);
+        then(postService).should().countLikes(1L);
+    }
+
+    @Test
+    @DisplayName("投稿詳細_本文にハッシュタグがあるとき_タグ一覧へのリンクとして表示する")
+    void getPostDetail_withHashtagBody_showsHashtagLink() throws Exception {
+        Post post = new Post("alice", "今日は #Java の話", LocalDateTime.of(2026, 5, 23, 10, 0));
+        ReflectionTestUtils.setField(post, "id", 1L);
+        given(postService.findById(1L)).willReturn(Optional.of(post));
+        given(postService.countLikes(1L)).willReturn(0L);
+
+        mockMvc.perform(get("/posts/1"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("今日は ")))
+                .andExpect(content().string(containsString("href=\"/tags/Java\"")))
+                .andExpect(content().string(containsString(">#Java</a>")))
+                .andExpect(content().string(containsString(" の話")));
 
         then(postService).should().findById(1L);
         then(postService).should().countLikes(1L);
@@ -154,6 +196,16 @@ class PostControllerTest {
                 .andExpect(redirectedUrl("/posts"));
 
         then(postService).should().create("alice", "hello", "#ff0000");
+    }
+
+    @Test
+    @DisplayName("投稿削除_存在するIDを指定したとき_論理削除して一覧へ302リダイレクトする")
+    void deletePost_withExistingId_softDeletesPostAndRedirectsToList() throws Exception {
+        mockMvc.perform(post("/posts/1/delete"))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl("/posts"));
+
+        then(postService).should().delete(1L);
     }
 
     @Test

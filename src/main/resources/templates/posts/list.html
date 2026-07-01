@@ -8,7 +8,8 @@
 </head>
 <body>
 <main>
-    <h1>社内つぶやきボード</h1>
+    <h1 th:if="${tagName == null}">社内つぶやきボード</h1>
+    <h1 th:if="${tagName != null}" th:text="|#${tagName} の投稿|">#Java の投稿</h1>
     <nav>
         <a th:href="@{/posts}">一覧</a>
         |
@@ -22,7 +23,8 @@
     </form>
 
     <section>
-        <p th:if="${#lists.isEmpty(posts)}">まだ投稿はありません。最初の一言を投稿しよう。</p>
+        <p th:if="${#lists.isEmpty(posts) and tagName == null}">まだ投稿はありません。最初の一言を投稿しよう。</p>
+        <p th:if="${#lists.isEmpty(posts) and tagName != null}">このタグの投稿はまだありません。</p>
         <article class="post" th:each="post : ${posts}">
             <header>
                 <span class="post__author" th:text="${post.author}">投稿者</span>

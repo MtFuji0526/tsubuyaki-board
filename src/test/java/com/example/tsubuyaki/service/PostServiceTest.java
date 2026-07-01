@@ -2,8 +2,10 @@ package com.example.tsubuyaki.service;
 
 import com.example.tsubuyaki.domain.Post;
 import com.example.tsubuyaki.domain.PostLike;
+import com.example.tsubuyaki.domain.Tag;
 import com.example.tsubuyaki.repository.PostLikeRepository;
 import com.example.tsubuyaki.repository.PostRepository;
+import com.example.tsubuyaki.repository.TagRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,6 +33,9 @@ class PostServiceTest {
     @Mock
     private PostLikeRepository postLikeRepository;
 
+    @Mock
+    private TagRepository tagRepository;
+
     @InjectMocks
     private PostService postService;
 
@@ -37,13 +43,13 @@ class PostServiceTest {
     @DisplayName("投稿検索_キーワードを受け取ると_本文部分一致検索の結果を返す")
     void searchByBody_withKeyword_returnsRepositoryResults() {
         Post post = new Post("alice", "hello spring", LocalDateTime.of(2026, 5, 23, 10, 0));
-        given(postRepository.findTop50ByBodyContainingOrderByCreatedAtDesc("hello"))
+        given(postRepository.findTop50ByDeletedAtIsNullAndBodyContainingOrderByCreatedAtDesc("hello"))
                 .willReturn(List.of(post));
 
         List<Post> posts = postService.searchByBody("hello");
 
         assertThat(posts).containsExactly(post);
-        then(postRepository).should().findTop50ByBodyContainingOrderByCreatedAtDesc("hello");
+        then(postRepository).should().findTop50ByDeletedAtIsNullAndBodyContainingOrderByCreatedAtDesc("hello");
     }
 
     @Test
@@ -62,6 +68,41 @@ class PostServiceTest {
         assertThat(saved.getAvatarColor()).isEqualTo("#ff0000");
         assertThat(saved.getCreatedAt()).isBetween(beforeCreate, LocalDateTime.now());
         assertThat(created).isSameAs(saved);
+    }
+
+    @Test
+    @DisplayName("投稿作成_本文にハッシュタグがあるとき_タグを保存して投稿へ紐づける")
+    void create_withHashtags_savesTagsAndLinksToPost() {
+        Tag existingTag = new Tag("Java");
+        given(tagRepository.findByName("Java")).willReturn(Optional.of(existingTag));
+        given(tagRepository.findByName("春")).willReturn(Optional.empty());
+        given(tagRepository.save(any(Tag.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(postRepository.save(any(Post.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        Post created = postService.create("alice", "#Java の勉強会と #春 の話 #Java", "#ff0000");
+
+        ArgumentCaptor<Post> postCaptor = ArgumentCaptor.forClass(Post.class);
+        then(postRepository).should().save(postCaptor.capture());
+        assertThat(postCaptor.getValue().getTags())
+                .extracting(Tag::getName)
+                .containsExactlyInAnyOrder("Java", "春");
+        assertThat(created.getTags())
+                .extracting(Tag::getName)
+                .containsExactlyInAnyOrder("Java", "春");
+        then(tagRepository).should().save(any(Tag.class));
+    }
+
+    @Test
+    @DisplayName("投稿削除_存在するIDを受け取ると_削除日時を設定して保存する")
+    void delete_withExistingId_setsDeletedAtAndSavesPost() {
+        Post post = new Post("alice", "hello", LocalDateTime.of(2026, 5, 23, 10, 0));
+        given(postRepository.findById(1L)).willReturn(Optional.of(post));
+        LocalDateTime beforeDelete = LocalDateTime.now();
+
+        postService.delete(1L);
+
+        assertThat(post.getDeletedAt()).isBetween(beforeDelete, LocalDateTime.now());
+        then(postRepository).should().save(post);
     }
 
     @Test

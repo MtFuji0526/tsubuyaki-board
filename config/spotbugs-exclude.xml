@@ -23,6 +23,15 @@
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
 
+    <!-- Spring 管理 Bean のコンストラクタ注入は内部可変状態の公開ではない -->
+    <Match>
+        <Or>
+            <Class name="~.*\.controller\..*"/>
+            <Class name="~.*\.service\..*"/>
+        </Or>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
     <!-- Lombok 等で生成される equals/hashCode -->
     <Match>
         <Bug pattern="HE_EQUALS_USE_HASHCODE"/>
