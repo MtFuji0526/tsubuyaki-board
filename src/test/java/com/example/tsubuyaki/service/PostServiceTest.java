@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -31,6 +32,19 @@ class PostServiceTest {
 
     @InjectMocks
     private PostService postService;
+
+    @Test
+    @DisplayName("投稿検索_キーワードを受け取ると_本文部分一致検索の結果を返す")
+    void searchByBody_withKeyword_returnsRepositoryResults() {
+        Post post = new Post("alice", "hello spring", Instant.parse("2026-05-23T10:00:00Z"));
+        given(postRepository.findTop50ByBodyContainingOrderByCreatedAtDesc("hello"))
+                .willReturn(List.of(post));
+
+        List<Post> posts = postService.searchByBody("hello");
+
+        assertThat(posts).containsExactly(post);
+        then(postRepository).should().findTop50ByBodyContainingOrderByCreatedAtDesc("hello");
+    }
 
     @Test
     @DisplayName("投稿作成_投稿者と本文を受け取ると_作成日時を付けて保存する")

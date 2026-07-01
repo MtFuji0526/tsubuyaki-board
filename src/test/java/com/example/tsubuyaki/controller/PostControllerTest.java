@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -62,6 +63,31 @@ class PostControllerTest {
                 .extracting(Post::getBody)
                 .containsExactly("new post", "old post");
         then(postService).should().findLatest50();
+    }
+
+    @Test
+    @DisplayName("投稿一覧_検索クエリがあるとき_本文で絞り込み検索フォームに検索語を保持する")
+    void getPosts_withSearchQuery_addsSearchResultsAndQueryToModel() throws Exception {
+        Post matched = new Post("alice", "hello spring", Instant.parse("2026-05-23T10:00:00Z"));
+        ReflectionTestUtils.setField(matched, "id", 1L);
+        given(postService.searchByBody("hello")).willReturn(List.of(matched));
+
+        var result = mockMvc.perform(get("/posts").param("q", "hello"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("posts/list"))
+                .andExpect(model().attribute("q", "hello"))
+                .andExpect(content().string(containsString("name=\"q\"")))
+                .andExpect(content().string(containsString("value=\"hello\"")))
+                .andExpect(content().string(containsString("hello spring")))
+                .andReturn();
+
+        @SuppressWarnings("unchecked")
+        List<Post> posts = (List<Post>) result.getModelAndView().getModel().get("posts");
+        assertThat(posts)
+                .extracting(Post::getBody)
+                .containsExactly("hello spring");
+        then(postService).should().searchByBody("hello");
+        then(postService).should(never()).findLatest50();
     }
 
     @Test

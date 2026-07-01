@@ -15,6 +15,12 @@
         <a th:href="@{/posts/new}">新規投稿</a>
     </nav>
 
+    <form class="search-form" th:action="@{/posts}" method="get">
+        <label for="q">本文検索</label>
+        <input type="search" id="q" name="q" th:value="${q}" placeholder="キーワード">
+        <button type="submit">検索</button>
+    </form>
+
     <section>
         <p th:if="${#lists.isEmpty(posts)}">まだ投稿はありません。最初の一言を投稿しよう。</p>
         <article class="post" th:each="post : ${posts}">
