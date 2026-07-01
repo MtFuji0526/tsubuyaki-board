@@ -1,6 +1,7 @@
 package com.example.tsubuyaki.repository;
 
 import com.example.tsubuyaki.domain.Post;
+import com.example.tsubuyaki.domain.PostLike;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,9 @@ class PostRepositoryTest {
     @Autowired
     private PostRepository postRepository;
 
+    @Autowired
+    private PostLikeRepository postLikeRepository;
+
     @Test
     @DisplayName("投稿一覧_投稿が51件あるとき_最新50件を新着順で返す")
     void findTop50ByOrderByCreatedAtDesc_with51Posts_returnsLatest50InDescendingOrder() {
@@ -38,5 +42,30 @@ class PostRepositoryTest {
                 .startsWith("post-51")
                 .endsWith("post-02")
                 .doesNotContain("post-01");
+    }
+
+    @Test
+    @DisplayName("いいね集計_投稿にいいねが登録されているとき_件数を返す")
+    void countByPostId_withLikes_returnsLikeCount() {
+        Post post = postRepository.save(new Post("alice", "hello", Instant.parse("2026-05-23T10:00:00Z")));
+        postLikeRepository.save(new PostLike(post, "abcdef12"));
+        postLikeRepository.save(new PostLike(post, "34567890"));
+
+        long count = postLikeRepository.countByPostId(post.getId());
+
+        assertThat(count).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("いいね削除_投稿IDとclientHashが一致するとき_対象のいいねだけ削除する")
+    void deleteByPostIdAndClientHash_withMatchingLike_deletesOnlyMatchedLike() {
+        Post post = postRepository.save(new Post("alice", "hello", Instant.parse("2026-05-23T10:00:00Z")));
+        postLikeRepository.save(new PostLike(post, "abcdef12"));
+        postLikeRepository.save(new PostLike(post, "34567890"));
+
+        postLikeRepository.deleteByPostIdAndClientHash(post.getId(), "abcdef12");
+
+        assertThat(postLikeRepository.existsByPostIdAndClientHash(post.getId(), "abcdef12")).isFalse();
+        assertThat(postLikeRepository.existsByPostIdAndClientHash(post.getId(), "34567890")).isTrue();
     }
 }

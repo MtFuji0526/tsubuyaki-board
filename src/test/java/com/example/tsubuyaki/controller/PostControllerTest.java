@@ -10,7 +10,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 
@@ -66,15 +70,19 @@ class PostControllerTest {
         Post post = new Post("alice", "detail body", Instant.parse("2026-05-23T10:00:00Z"));
         ReflectionTestUtils.setField(post, "id", 1L);
         given(postService.findById(1L)).willReturn(Optional.of(post));
+        given(postService.countLikes(1L)).willReturn(3L);
 
         mockMvc.perform(get("/posts/1"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("posts/detail"))
                 .andExpect(model().attribute("post", post))
+                .andExpect(model().attribute("likeCount", 3L))
                 .andExpect(content().string(containsString("alice")))
-                .andExpect(content().string(containsString("detail body")));
+                .andExpect(content().string(containsString("detail body")))
+                .andExpect(content().string(containsString("3 件")));
 
         then(postService).should().findById(1L);
+        then(postService).should().countLikes(1L);
     }
 
     @Test
@@ -141,5 +149,51 @@ class PostControllerTest {
                 .andExpect(content().string(containsString("本文は 280 文字以内で入力してください")));
 
         then(postService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("いいね登録_同一clientHashから初回アクセス_トグル処理して詳細へ302リダイレクトする")
+    void toggleLike_firstAccess_togglesLikeAndRedirectsToDetail() throws Exception {
+        String remoteAddr = "192.0.2.10";
+        String userAgent = "MockBrowser/1.0";
+
+        mockMvc.perform(post("/posts/1/likes")
+                        .with(request -> {
+                            request.setRemoteAddr(remoteAddr);
+                            request.addHeader("User-Agent", userAgent);
+                            return request;
+                        }))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl("/posts/1"));
+
+        then(postService).should().toggleLike(1L, clientHash(remoteAddr, userAgent));
+    }
+
+    @Test
+    @DisplayName("いいね解除_同一clientHashから2回目アクセス_トグル処理して詳細へ302リダイレクトする")
+    void toggleLike_secondAccess_togglesLikeAndRedirectsToDetail() throws Exception {
+        String remoteAddr = "192.0.2.10";
+        String userAgent = "MockBrowser/1.0";
+
+        mockMvc.perform(post("/posts/1/likes")
+                        .with(request -> {
+                            request.setRemoteAddr(remoteAddr);
+                            request.addHeader("User-Agent", userAgent);
+                            return request;
+                        }))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl("/posts/1"));
+
+        then(postService).should().toggleLike(1L, clientHash(remoteAddr, userAgent));
+    }
+
+    private String clientHash(String remoteAddr, String userAgent) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest((remoteAddr + userAgent).getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest).substring(0, 8);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }
