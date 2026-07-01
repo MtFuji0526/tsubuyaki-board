@@ -22,6 +22,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -64,6 +65,23 @@ class PostControllerTest {
         assertThat(posts)
                 .extracting(Post::getBody)
                 .containsExactly("new post", "old post");
+        then(postService).should().findLatest50();
+    }
+
+    @Test
+    @DisplayName("投稿一覧_アバター色があるとき_投稿者名の直後に同じ色の丸アイコンを表示する")
+    void getPosts_withAvatarColor_showsCircularIconNextToAuthor() throws Exception {
+        Post post = new Post("alice", "hello", "#00aa55", LocalDateTime.of(2026, 5, 23, 10, 0));
+        ReflectionTestUtils.setField(post, "id", 1L);
+        given(postService.findLatest50()).willReturn(List.of(post));
+
+        mockMvc.perform(get("/posts"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(matchesPattern(
+                        "(?s).*<span class=\"post__author\">alice</span>\\s*"
+                                + "<span class=\"post__avatar\".*")))
+                .andExpect(content().string(containsString("background-color: #00aa55")));
+
         then(postService).should().findLatest50();
     }
 
