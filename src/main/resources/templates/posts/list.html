@@ -23,7 +23,11 @@
                 <span class="post__created-at"
                       th:text="${#temporals.format(post.createdAt, 'yyyy-MM-dd HH:mm')}">2026-05-23 09:00</span>
             </header>
-            <p class="post__body" th:text="${post.body}">本文</p>
+            <p class="post__body">
+                <a class="post__body-link"
+                   th:href="@{/posts/{id}(id=${post.id})}"
+                   th:text="${post.body}">本文</a>
+            </p>
         </article>
     </section>
 </main>

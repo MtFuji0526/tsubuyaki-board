@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional(readOnly = true)
@@ -20,6 +21,10 @@ public class PostService {
 
     public List<Post> findLatest50() {
         return repository.findTop50ByOrderByCreatedAtDesc();
+    }
+
+    public Optional<Post> findById(Long id) {
+        return repository.findById(id);
     }
 
     @Transactional

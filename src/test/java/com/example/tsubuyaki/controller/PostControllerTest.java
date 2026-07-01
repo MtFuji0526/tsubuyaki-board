@@ -7,10 +7,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -37,13 +39,17 @@ class PostControllerTest {
     @DisplayName("投稿一覧_投稿があるとき_新着順の最新50件をビューに渡す")
     void getPosts_withPosts_addsLatest50ToModelInDescendingOrder() throws Exception {
         Post newer = new Post("alice", "new post", Instant.parse("2026-05-23T10:00:00Z"));
+        ReflectionTestUtils.setField(newer, "id", 2L);
         Post older = new Post("bob", "old post", Instant.parse("2026-05-23T09:00:00Z"));
+        ReflectionTestUtils.setField(older, "id", 1L);
         given(postService.findLatest50()).willReturn(List.of(newer, older));
 
         var result = mockMvc.perform(get("/posts"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("posts/list"))
                 .andExpect(model().attributeExists("posts"))
+                .andExpect(content().string(containsString("href=\"/posts/2\"")))
+                .andExpect(content().string(containsString("href=\"/posts/1\"")))
                 .andReturn();
 
         @SuppressWarnings("unchecked")
@@ -52,6 +58,34 @@ class PostControllerTest {
                 .extracting(Post::getBody)
                 .containsExactly("new post", "old post");
         then(postService).should().findLatest50();
+    }
+
+    @Test
+    @DisplayName("投稿詳細_存在するIDのとき_対象投稿を表示する")
+    void getPostDetail_withExistingId_showsPostDetail() throws Exception {
+        Post post = new Post("alice", "detail body", Instant.parse("2026-05-23T10:00:00Z"));
+        ReflectionTestUtils.setField(post, "id", 1L);
+        given(postService.findById(1L)).willReturn(Optional.of(post));
+
+        mockMvc.perform(get("/posts/1"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("posts/detail"))
+                .andExpect(model().attribute("post", post))
+                .andExpect(content().string(containsString("alice")))
+                .andExpect(content().string(containsString("detail body")));
+
+        then(postService).should().findById(1L);
+    }
+
+    @Test
+    @DisplayName("投稿詳細_存在しないIDのとき_404を返す")
+    void getPostDetail_withMissingId_returnsNotFound() throws Exception {
+        given(postService.findById(999L)).willReturn(Optional.empty());
+
+        mockMvc.perform(get("/posts/999"))
+                .andExpect(status().isNotFound());
+
+        then(postService).should().findById(999L);
     }
 
     @Test
