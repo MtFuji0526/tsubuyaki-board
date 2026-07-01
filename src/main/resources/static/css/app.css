@@ -61,9 +61,23 @@ h1 {
     background: white;
 }
 
+.post header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.post__avatar {
+    display: inline-block;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+
 .post__author {
     font-weight: 600;
-    margin-right: 0.5rem;
 }
 
 .post__created-at {

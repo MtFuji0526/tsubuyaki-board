@@ -17,6 +17,9 @@
 
     <article class="post">
         <header>
+            <span class="post__avatar"
+                  th:style="|background-color: ${post.avatarColor}|"
+                  aria-hidden="true"></span>
             <span class="post__author" th:text="${post.author}">投稿者</span>
             <span class="post__created-at"
                   th:text="${#temporals.format(post.createdAt, 'yyyy-MM-dd HH:mm')}">2026-05-23 09:00</span>

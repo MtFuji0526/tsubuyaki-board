@@ -8,12 +8,14 @@ import jakarta.persistence.Id;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Entity
 @Table(name = "posts")
 public class Post {
+
+    public static final String DEFAULT_AVATAR_COLOR = "#1d4ed8";
 
     @Id
     @SequenceGenerator(name = "posts_seq_gen", sequenceName = "posts_seq", allocationSize = 1)
@@ -26,16 +28,24 @@ public class Post {
     @Column(name = "body", length = 280, nullable = false)
     private String body;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    @Column(name = "avatar_color", length = 30, nullable = false)
+    private String avatarColor;
+
+    @Column(name = "created_at", nullable = false, columnDefinition = "TIMESTAMP(6)")
+    private LocalDateTime createdAt;
 
     protected Post() {
         // JPA
     }
 
-    public Post(String author, String body, Instant createdAt) {
+    public Post(String author, String body, LocalDateTime createdAt) {
+        this(author, body, DEFAULT_AVATAR_COLOR, createdAt);
+    }
+
+    public Post(String author, String body, String avatarColor, LocalDateTime createdAt) {
         this.author = author;
         this.body = body;
+        this.avatarColor = avatarColor;
         this.createdAt = createdAt;
     }
 
@@ -51,7 +61,11 @@ public class Post {
         return body;
     }
 
-    public Instant getCreatedAt() {
+    public String getAvatarColor() {
+        return avatarColor;
+    }
+
+    public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 

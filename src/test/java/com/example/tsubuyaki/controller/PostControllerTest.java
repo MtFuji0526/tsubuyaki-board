@@ -4,6 +4,8 @@ import com.example.tsubuyaki.domain.Post;
 import com.example.tsubuyaki.service.PostService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -13,7 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
@@ -43,9 +45,9 @@ class PostControllerTest {
     @Test
     @DisplayName("投稿一覧_投稿があるとき_新着順の最新50件をビューに渡す")
     void getPosts_withPosts_addsLatest50ToModelInDescendingOrder() throws Exception {
-        Post newer = new Post("alice", "new post", Instant.parse("2026-05-23T10:00:00Z"));
+        Post newer = new Post("alice", "new post", LocalDateTime.of(2026, 5, 23, 10, 0));
         ReflectionTestUtils.setField(newer, "id", 2L);
-        Post older = new Post("bob", "old post", Instant.parse("2026-05-23T09:00:00Z"));
+        Post older = new Post("bob", "old post", LocalDateTime.of(2026, 5, 23, 9, 0));
         ReflectionTestUtils.setField(older, "id", 1L);
         given(postService.findLatest50()).willReturn(List.of(newer, older));
 
@@ -68,7 +70,7 @@ class PostControllerTest {
     @Test
     @DisplayName("投稿一覧_検索クエリがあるとき_本文で絞り込み検索フォームに検索語を保持する")
     void getPosts_withSearchQuery_addsSearchResultsAndQueryToModel() throws Exception {
-        Post matched = new Post("alice", "hello spring", Instant.parse("2026-05-23T10:00:00Z"));
+        Post matched = new Post("alice", "hello spring", LocalDateTime.of(2026, 5, 23, 10, 0));
         ReflectionTestUtils.setField(matched, "id", 1L);
         given(postService.searchByBody("hello")).willReturn(List.of(matched));
 
@@ -93,7 +95,7 @@ class PostControllerTest {
     @Test
     @DisplayName("投稿詳細_存在するIDのとき_対象投稿を表示する")
     void getPostDetail_withExistingId_showsPostDetail() throws Exception {
-        Post post = new Post("alice", "detail body", Instant.parse("2026-05-23T10:00:00Z"));
+        Post post = new Post("alice", "detail body", "#ff0000", LocalDateTime.of(2026, 5, 23, 10, 0));
         ReflectionTestUtils.setField(post, "id", 1L);
         given(postService.findById(1L)).willReturn(Optional.of(post));
         given(postService.countLikes(1L)).willReturn(3L);
@@ -105,6 +107,7 @@ class PostControllerTest {
                 .andExpect(model().attribute("likeCount", 3L))
                 .andExpect(content().string(containsString("alice")))
                 .andExpect(content().string(containsString("detail body")))
+                .andExpect(content().string(containsString("background-color: #ff0000")))
                 .andExpect(content().string(containsString("3 件")));
 
         then(postService).should().findById(1L);
@@ -127,11 +130,26 @@ class PostControllerTest {
     void createPost_withValidInput_savesPostAndRedirectsToList() throws Exception {
         mockMvc.perform(post("/posts")
                         .param("author", "alice")
-                        .param("body", "hello"))
+                        .param("body", "hello")
+                        .param("avatarColor", "#ff0000"))
                 .andExpect(status().isFound())
                 .andExpect(redirectedUrl("/posts"));
 
-        then(postService).should().create("alice", "hello");
+        then(postService).should().create("alice", "hello", "#ff0000");
+    }
+
+    @Test
+    @DisplayName("投稿作成_投稿者が未入力のとき_フォームを再表示してエラーを渡す")
+    void createPost_withoutAuthor_redisplaysFormWithErrors() throws Exception {
+        mockMvc.perform(post("/posts")
+                        .param("body", "hello")
+                        .param("avatarColor", "#ff0000"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("posts/form"))
+                .andExpect(model().attributeHasFieldErrors("postForm", "author"))
+                .andExpect(content().string(containsString("投稿者名を入力してください")));
+
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -139,7 +157,8 @@ class PostControllerTest {
     void createPost_withBlankAuthor_redisplaysFormWithErrors() throws Exception {
         mockMvc.perform(post("/posts")
                         .param("author", "   ")
-                        .param("body", "hello"))
+                        .param("body", "hello")
+                        .param("avatarColor", "#ff0000"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("posts/form"))
                 .andExpect(model().attributeHasFieldErrors("postForm", "author"))
@@ -154,6 +173,21 @@ class PostControllerTest {
         mockMvc.perform(post("/posts")
                         .param("author", "alice")
                         .param("body", "   "))
+                .andExpect(status().isOk())
+                .andExpect(view().name("posts/form"))
+                .andExpect(model().attributeHasFieldErrors("postForm", "body"))
+                .andExpect(content().string(containsString("本文を入力してください")));
+
+        then(postService).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "\u3000\u3000", " \u3000" })
+    @DisplayName("投稿作成_本文が全角スペースを含む空白のみのとき_フォームを再表示してエラーを渡す")
+    void createPost_withFullWidthSpacesOnlyBody_redisplaysFormWithErrors(String body) throws Exception {
+        mockMvc.perform(post("/posts")
+                        .param("author", "alice")
+                        .param("body", body))
                 .andExpect(status().isOk())
                 .andExpect(view().name("posts/form"))
                 .andExpect(model().attributeHasFieldErrors("postForm", "body"))

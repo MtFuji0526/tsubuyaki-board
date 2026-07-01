@@ -15,9 +15,14 @@
 
     <form th:action="@{/posts}" th:object="${postForm}" method="post">
         <div>
-            <label for="author">投稿者</label>
+            <label for="author">投稿者 <span class="required">必須</span></label>
             <input type="text" id="author" th:field="*{author}" maxlength="30" required>
             <p class="error" th:if="${#fields.hasErrors('author')}" th:errors="*{author}">エラー</p>
+        </div>
+        <div>
+            <label for="avatarColor">アバター色</label>
+            <input type="color" id="avatarColor" th:field="*{avatarColor}" required>
+            <p class="error" th:if="${#fields.hasErrors('avatarColor')}" th:errors="*{avatarColor}">エラー</p>
         </div>
         <div>
             <label for="body">本文 (280 文字まで)</label>
